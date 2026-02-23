@@ -79,6 +79,15 @@ func (e *Executor) execSelect(stmt *SelectStmt) (*models.AQLResult, error) {
 		if rec != nil {
 			records = []*as.Record{rec}
 		}
+		result := recordsToResult(records)
+		// Prepend PK column to match AQL CLI output
+		if len(result.Rows) > 0 {
+			result.Columns = append([]string{"PK"}, result.Columns...)
+			for i := range result.Rows {
+				result.Rows[i]["PK"] = fmt.Sprintf("%v", stmt.Where.PKValue)
+			}
+		}
+		return result, nil
 	} else if stmt.Where != nil {
 		statement := as.NewStatement(stmt.Namespace, stmt.Set)
 		if len(binNames) > 0 {

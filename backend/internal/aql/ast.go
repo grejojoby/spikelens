@@ -18,8 +18,8 @@ func (*SelectStmt) stmtNode() {}
 
 // WhereClause is the WHERE portion of a SELECT
 type WhereClause struct {
-	IsPK      bool   // WHERE PK = 'key'
-	PKValue   string
+	IsPK      bool // WHERE PK = 'key'
+	PKValue   any
 	Bin       string
 	Op        string // eq, between
 	Value     any
@@ -40,7 +40,7 @@ func (*InsertStmt) stmtNode() {}
 type DeleteStmt struct {
 	Namespace string
 	Set       string
-	PKValue   string
+	PKValue   any
 }
 
 func (*DeleteStmt) stmtNode() {}

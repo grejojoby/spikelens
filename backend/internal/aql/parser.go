@@ -136,8 +136,11 @@ func (p *Parser) parseWhere() (*WhereClause, error) {
 		if _, err := p.expect(TOKEN_EQ); err != nil {
 			return nil, err
 		}
-		val := p.advance()
-		wc.PKValue = val.Literal
+		val, err := p.parseLiteral()
+		if err != nil {
+			return nil, err
+		}
+		wc.PKValue = val
 		return wc, nil
 	}
 	if col.Type != TOKEN_IDENT {
@@ -273,8 +276,11 @@ func (p *Parser) parseDelete() (*DeleteStmt, error) {
 	if _, err := p.expect(TOKEN_EQ); err != nil {
 		return nil, err
 	}
-	val := p.advance()
-	return &DeleteStmt{Namespace: ns, Set: set, PKValue: val.Literal}, nil
+	val, err := p.parseLiteral()
+	if err != nil {
+		return nil, err
+	}
+	return &DeleteStmt{Namespace: ns, Set: set, PKValue: val}, nil
 }
 
 func (p *Parser) parseCreateIndex() (*CreateIndexStmt, error) {
