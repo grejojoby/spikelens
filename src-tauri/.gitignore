@@ -2,3 +2,6 @@
 # will have compiled files and executables
 /target/
 /gen/schemas
+
+# Go sidecar binaries — built by CI, not committed
+/binaries/
