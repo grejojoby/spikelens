@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SpikeLens — The Aerospike GUI for Developers</title>
+  <meta name="description" content="A native desktop GUI for Aerospike databases. Browse namespaces, execute AQL, inspect records, and monitor cluster health — all from one app." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0b0f;
+      --bg-1:     #0e1018;
+      --bg-2:     #13161f;
+      --bg-3:     #1a1e2a;
+      --border:   rgba(255,255,255,0.055);
+      --border-1: rgba(255,255,255,0.10);
+      --accent:   #e85d04;
+      --accent-h: #f48c06;
+      --text-0:   #f0f2f7;
+      --text-1:   #c4cdd9;
+      --text-2:   #7e8ea3;
+      --text-3:   #3f4c60;
+      --green:    #22c55e;
+      --blue:     #60a5fa;
+      --yellow:   #fbbf24;
+      --purple:   #c084fc;
+      --mono:     'SF Mono','Fira Code','Cascadia Code',Consolas,'Courier New',monospace;
+      --sans:     -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text-0);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── grid bg ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── hero radial glow ── */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px; left: 50%;
+      transform: translateX(-50%);
+      width: 900px; height: 700px;
+      background: radial-gradient(ellipse at 50% 0%, rgba(232,93,4,0.13) 0%, transparent 68%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ════════════════════════════
+       NAV
+    ════════════════════════════ */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 200;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 58px;
+      background: rgba(10,11,15,0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.3s;
+    }
+
+    .nav-logo {
+      display: flex; align-items: center; gap: 9px;
+      text-decoration: none; color: var(--text-0);
+      font-weight: 700; font-size: 1rem; letter-spacing: -0.02em;
+    }
+
+    .logo-mark {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+
+    .nav-link {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 13px; border-radius: 7px;
+      text-decoration: none; color: var(--text-2);
+      font-size: 0.855rem; font-weight: 500;
+      transition: all 0.15s;
+    }
+    .nav-link:hover { color: var(--text-0); background: rgba(255,255,255,0.05); }
+
+    .nav-cta {
+      background: var(--accent) !important;
+      color: #fff !important;
+      font-weight: 600;
+    }
+    .nav-cta:hover { background: var(--accent-h) !important; }
+
+    /* ════════════════════════════
+       BUTTONS
+    ════════════════════════════ */
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 10px 20px; border-radius: 8px;
+      font-size: 0.875rem; font-weight: 600;
+      text-decoration: none; cursor: pointer;
+      border: none; transition: all 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-h); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(232,93,4,0.35); }
+    .btn-ghost {
+      background: transparent; color: var(--text-1);
+      border: 1px solid var(--border-1);
+    }
+    .btn-ghost:hover { background: var(--bg-2); color: var(--text-0); border-color: rgba(255,255,255,0.15); }
+
+    /* ════════════════════════════
+       HERO
+    ════════════════════════════ */
+    .hero {
+      position: relative; z-index: 1;
+      padding: 130px 2rem 0;
+      max-width: 1120px; margin: 0 auto;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 14px; border-radius: 100px;
+      border: 1px solid var(--border-1);
+      background: var(--bg-1);
+      font-family: var(--mono); font-size: 0.72rem; color: var(--text-2);
+      margin-bottom: 28px;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .badge-pip {
+      width: 6px; height: 6px;
+      background: var(--accent); border-radius: 50%;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.8rem, 7.5vw, 6rem);
+      font-weight: 800; letter-spacing: -0.045em; line-height: 1.03;
+      margin-bottom: 22px;
+      background: linear-gradient(160deg, #fff 20%, rgba(255,255,255,0.55) 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: fadeUp 0.5s 0.1s ease both;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--accent-h) 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-sub {
+      font-size: 1.1rem; color: var(--text-2);
+      max-width: 520px; margin: 0 auto 34px; line-height: 1.72;
+      animation: fadeUp 0.5s 0.18s ease both;
+    }
+
+    .hero-actions {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+      animation: fadeUp 0.5s 0.26s ease both;
+    }
+
+    .hero-meta {
+      display: flex; align-items: center; justify-content: center;
+      gap: 22px; margin-bottom: 56px;
+      font-family: var(--mono); font-size: 0.7rem; color: var(--text-3);
+      animation: fadeUp 0.5s 0.32s ease both;
+    }
+    .hero-meta span { display: flex; align-items: center; gap: 5px; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ════════════════════════════
+       APP MOCKUP
+    ════════════════════════════ */
+    .mockup-wrap {
+      position: relative;
+      max-width: 1000px; margin: 0 auto;
+      animation: fadeUp 0.6s 0.4s ease both;
+    }
+
+    .mockup-glow {
+      position: absolute;
+      inset: -60px; z-index: -1;
+      background: radial-gradient(ellipse 70% 50% at 50% 50%, rgba(232,93,4,0.10) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .app-window {
+      background: var(--bg-1);
+      border-radius: 12px;
+      border: 1px solid var(--border-1);
+      overflow: hidden;
+      box-shadow:
+        0 50px 120px rgba(0,0,0,0.7),
+        0 0 0 1px rgba(255,255,255,0.04),
+        inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+
+    /* title bar */
+    .app-bar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 16px;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tlights { display: flex; gap: 6px; }
+    .tl { width: 12px; height: 12px; border-radius: 50%; }
+    .tl-r { background: #ff5f57; }
+    .tl-y { background: #ffbd2e; }
+    .tl-g { background: #28c840; }
+
+    .app-bar-title {
+      flex: 1; text-align: center;
+      font-family: var(--mono); font-size: 0.7rem; color: var(--text-3);
+    }
+
+    .app-bar-status {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 0.68rem; color: var(--green);
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      background: var(--green); border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+    /* app layout */
+    .app-body {
+      display: grid;
+      grid-template-columns: 195px 1fr;
+      height: 460px;
+    }
+
+    /* sidebar */
+    .app-sidebar {
+      background: var(--bg-2);
+      border-right: 1px solid var(--border);
+      padding: 10px 0; overflow: hidden;
+    }
+
+    .sb-label {
+      padding: 6px 12px 4px;
+      font-family: var(--mono); font-size: 0.6rem;
+      color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em;
+      margin-top: 6px;
+    }
+
+    .sb-conn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 12px; font-size: 0.77rem; color: var(--text-0);
+      background: rgba(232,93,4,0.08); border-left: 2px solid var(--accent);
+      margin: 2px 0;
+    }
+
+    .sb-ns {
+      padding: 4px 12px; font-size: 0.74rem; color: var(--text-2);
+      display: flex; align-items: center; gap: 6px; cursor: default;
+    }
+    .sb-ns:hover { color: var(--text-0); background: rgba(255,255,255,0.03); }
+
+    .sb-set {
+      padding: 3px 12px 3px 26px;
+      font-size: 0.7rem; color: var(--text-3);
+      display: flex; align-items: center; gap: 5px; cursor: default;
+    }
+    .sb-set.active { color: var(--accent-h); background: rgba(244,140,6,0.07); }
+
+    .arr { font-size: 0.6rem; color: var(--text-3); }
+
+    /* main panel */
+    .app-main { display: flex; flex-direction: column; overflow: hidden; }
+
+    .app-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px;
+      background: var(--bg-1); border-bottom: 1px solid var(--border);
+    }
+
+    .crumb {
+      font-family: var(--mono); font-size: 0.7rem; color: var(--text-2);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .crumb-ns  { color: var(--text-1); }
+    .crumb-sep { color: var(--text-3); }
+    .crumb-set { color: var(--accent-h); }
+
+    .t-spacer { flex: 1; }
+
+    .t-btn {
+      padding: 4px 10px; border-radius: 5px;
+      background: var(--bg-3); border: 1px solid var(--border);
+      color: var(--text-2); font-family: var(--mono); font-size: 0.65rem;
+      cursor: default; white-space: nowrap;
+    }
+    .t-btn.hi {
+      background: rgba(232,93,4,0.12); border-color: rgba(232,93,4,0.28);
+      color: var(--accent-h);
+    }
+
+    /* table */
+    .records-area { flex: 1; overflow: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 0.69rem; }
+    thead th {
+      padding: 8px 14px; text-align: left;
+      color: var(--text-3); font-weight: 500; font-size: 0.63rem;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      background: var(--bg-1); border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:hover { background: rgba(255,255,255,0.025); }
+    tbody tr.sel { background: rgba(232,93,4,0.06); }
+    tbody td {
+      padding: 7px 14px; color: var(--text-1);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+    }
+    td.k  { color: var(--accent-h); }
+    td.s  { color: var(--green); }
+    td.n  { color: var(--blue); }
+    td.dm { color: var(--text-3); }
+
+    /* status bar */
+    .app-sbar {
+      display: flex; align-items: center; gap: 14px;
+      padding: 5px 14px;
+      background: var(--bg-2); border-top: 1px solid var(--border);
+      font-family: var(--mono); font-size: 0.64rem; color: var(--text-3);
+    }
+    .sbar-v { color: var(--text-1); margin-left: 3px; }
+
+    /* ════════════════════════════
+       SECTION CHROME
+    ════════════════════════════ */
+    .section-label {
+      font-family: var(--mono); font-size: 0.72rem;
+      color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: clamp(1.75rem, 3.5vw, 2.7rem);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.1;
+      margin-bottom: 52px; max-width: 480px;
+    }
+
+    /* ════════════════════════════
+       FEATURES
+    ════════════════════════════ */
+    .features {
+      position: relative; z-index: 1;
+      padding: 110px 2rem 80px;
+      max-width: 1120px; margin: 0 auto;
+    }
+
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+
+    .feat-card {
+      background: var(--bg-1);
+      padding: 28px 26px 32px;
+      transition: background 0.2s;
+    }
+    .feat-card:hover { background: var(--bg-2); }
+
+    .feat-icon {
+      width: 38px; height: 38px;
+      background: rgba(232,93,4,0.1);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px; color: var(--accent);
+    }
+
+    .feat-title {
+      font-size: 0.92rem; font-weight: 700;
+      color: var(--text-0); margin-bottom: 7px; letter-spacing: -0.01em;
+    }
+
+    .feat-desc { font-size: 0.81rem; color: var(--text-2); line-height: 1.65; }
+
+    /* ════════════════════════════
+       HOW IT WORKS
+    ════════════════════════════ */
+    .how {
+      position: relative; z-index: 1;
+      padding: 100px 2rem;
+      background: linear-gradient(180deg, transparent 0%, var(--bg-1) 15%, var(--bg-1) 85%, transparent 100%);
+    }
+    .how-inner { max-width: 1120px; margin: 0 auto; }
+
+    .steps {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 0; position: relative;
+    }
+
+    .steps::before {
+      content: '';
+      position: absolute;
+      top: 27px;
+      left: calc(100% / 6 + 28px);
+      right: calc(100% / 6 + 28px);
+      height: 1px;
+      background: linear-gradient(90deg,
+        rgba(232,93,4,0.5) 0%,
+        rgba(232,93,4,0.15) 50%,
+        rgba(232,93,4,0.5) 100%);
+      z-index: 0;
+    }
+
+    .step { padding: 0 28px; text-align: center; }
+
+    .step-num {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--bg-2); border: 1px solid var(--border-1);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px; position: relative; z-index: 1;
+      font-family: var(--mono); font-size: 0.75rem;
+      color: var(--accent); font-weight: 700;
+    }
+
+    .step-title {
+      font-size: 1rem; font-weight: 700; color: var(--text-0);
+      margin-bottom: 10px; letter-spacing: -0.015em;
+    }
+
+    .step-desc { font-size: 0.82rem; color: var(--text-2); line-height: 1.65; }
+
+    /* ════════════════════════════
+       AQL SPOTLIGHT
+    ════════════════════════════ */
+    .aql {
+      position: relative; z-index: 1;
+      padding: 100px 2rem;
+      max-width: 1120px; margin: 0 auto;
+    }
+
+    .aql-layout {
+      display: grid; grid-template-columns: 1.1fr 1fr;
+      gap: 56px; align-items: start;
+    }
+
+    /* editor mockup */
+    .editor-win {
+      background: var(--bg-1);
+      border-radius: 10px; border: 1px solid var(--border-1);
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+    }
+
+    .editor-tabs {
+      display: flex; align-items: center;
+      background: var(--bg-2); border-bottom: 1px solid var(--border);
+      padding: 0 14px;
+    }
+
+    .etab {
+      padding: 9px 14px;
+      font-family: var(--mono); font-size: 0.68rem; color: var(--text-3);
+      border-bottom: 2px solid transparent; cursor: default;
+    }
+    .etab.on { color: var(--text-0); border-bottom-color: var(--accent); }
+
+    .editor-code {
+      padding: 18px 20px;
+      font-family: var(--mono); font-size: 0.775rem; line-height: 1.85;
+    }
+
+    .cl { display: flex; gap: 16px; }
+    .ln { color: var(--text-3); min-width: 18px; text-align: right; user-select: none; }
+    .ct { color: var(--text-1); }
+
+    /* token colors */
+    .kw { color: var(--purple); }
+    .fn { color: var(--blue); }
+    .st { color: var(--green); }
+    .nm { color: var(--yellow); }
+    .cm { color: var(--text-3); }
+    .op { color: var(--accent-h); }
+
+    /* blinking cursor */
+    .cur {
+      display: inline-block; width: 2px; height: 1em;
+      background: var(--accent); vertical-align: text-bottom;
+      margin-left: 1px;
+      animation: blink 1.1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    .editor-results {
+      background: rgba(0,0,0,0.25);
+      border-top: 1px solid var(--border);
+      padding: 12px 20px;
+    }
+
+    .res-row {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      padding: 2px 0;
+      font-family: var(--mono); font-size: 0.69rem; color: var(--text-2);
+    }
+    .res-row .rc { color: var(--blue); }
+    .res-row .rv { color: var(--text-1); }
+
+    .res-meta {
+      margin-top: 8px;
+      font-family: var(--mono); font-size: 0.63rem; color: var(--text-3);
+    }
+
+    /* aql feature list */
+    .aql-list { display: flex; flex-direction: column; gap: 16px; }
+
+    .aql-item {
+      padding: 20px 22px;
+      background: var(--bg-1);
+      border-radius: 10px; border: 1px solid var(--border);
+      transition: border-color 0.2s;
+    }
+    .aql-item:hover { border-color: var(--border-1); }
+
+    .aql-item-title {
+      font-size: 0.88rem; font-weight: 700;
+      color: var(--text-0); margin-bottom: 5px;
+    }
+    .aql-item-desc { font-size: 0.79rem; color: var(--text-2); line-height: 1.6; }
+
+    code {
+      font-family: var(--mono); font-size: 0.72rem;
+      background: var(--bg-3); color: var(--accent-h);
+      padding: 1px 6px; border-radius: 4px;
+      border: 1px solid var(--border-1);
+    }
+
+    /* ════════════════════════════
+       TECH STRIP
+    ════════════════════════════ */
+    .tech-strip {
+      position: relative; z-index: 1;
+      padding: 52px 2rem;
+      background: var(--bg-1);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .tech-inner {
+      max-width: 1120px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: center;
+      gap: 40px; flex-wrap: wrap;
+    }
+    .tech-item {
+      display: flex; align-items: center; gap: 9px;
+      font-size: 0.83rem; color: var(--text-2); font-weight: 500;
+    }
+    .tech-item svg { color: var(--text-3); flex-shrink: 0; }
+    .tech-div { width: 1px; height: 22px; background: var(--border-1); }
+
+    /* ════════════════════════════
+       FOOTER
+    ════════════════════════════ */
+    footer {
+      position: relative; z-index: 1;
+      padding: 52px 2rem;
+      max-width: 1120px; margin: 0 auto;
+    }
+    .footer-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      border-top: 1px solid var(--border); padding-top: 36px;
+      flex-wrap: wrap; gap: 20px;
+    }
+
+    .footer-logo {
+      display: flex; align-items: center; gap: 9px;
+      text-decoration: none; color: var(--text-0);
+      font-weight: 700; font-size: 0.93rem; letter-spacing: -0.02em;
+    }
+
+    .footer-links { display: flex; align-items: center; gap: 18px; }
+    .footer-link {
+      font-size: 0.79rem; color: var(--text-2);
+      text-decoration: none; transition: color 0.15s;
+    }
+    .footer-link:hover { color: var(--text-0); }
+
+    .footer-badge {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 13px; border-radius: 100px;
+      border: 1px solid var(--border-1);
+      font-size: 0.73rem; color: var(--text-2);
+    }
+
+    /* ════════════════════════════
+       SCROLL REVEAL
+    ════════════════════════════ */
+    .reveal {
+      opacity: 0;
+      transform: translateY(22px);
+      transition: opacity 0.55s ease, transform 0.55s ease;
+    }
+    .reveal.vis { opacity: 1; transform: translateY(0); }
+
+    /* ════════════════════════════
+       RESPONSIVE
+    ════════════════════════════ */
+    @media (max-width: 960px) {
+      .feat-grid   { grid-template-columns: repeat(2, 1fr); }
+      .steps       { grid-template-columns: 1fr; gap: 40px; }
+      .steps::before { display: none; }
+      .aql-layout  { grid-template-columns: 1fr; }
+      .app-body    { grid-template-columns: 170px 1fr; height: 380px; }
+    }
+
+    @media (max-width: 640px) {
+      nav { padding: 0 1rem; }
+      .nav-link:not(.nav-cta) { display: none; }
+      .feat-grid  { grid-template-columns: 1fr; }
+      .app-body   { grid-template-columns: 1fr; }
+      .app-sidebar { display: none; }
+      .hero       { padding-top: 100px; }
+      .hero h1    { font-size: 2.5rem; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+      .footer-links { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════ NAV ══════════════ -->
+<nav id="nav">
+  <a href="#" class="nav-logo">
+    <div class="logo-mark">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="6.5" cy="6.5" r="4" stroke="white" stroke-width="1.5"/>
+        <line x1="9.5" y1="9.5" x2="14" y2="14" stroke="white" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="4" y1="6.5" x2="9" y2="6.5" stroke="white" stroke-width="1.1" stroke-linecap="round"/>
+        <line x1="6.5" y1="4" x2="6.5" y2="9" stroke="white" stroke-width="1.1" stroke-linecap="round"/>
+      </svg>
+    </div>
+    SpikeLens
+  </a>
+  <div class="nav-links">
+    <a href="#features" class="nav-link">Features</a>
+    <a href="#aql" class="nav-link">AQL Editor</a>
+    <a href="https://github.com/grejojoby/spikelens" target="_blank" rel="noopener" class="nav-link">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      GitHub
+    </a>
+    <a href="https://github.com/grejojoby/spikelens/releases/latest" target="_blank" rel="noopener" class="nav-link nav-cta">Download</a>
+  </div>
+</nav>
+
+<!-- ══════════════ HERO ══════════════ -->
+<section class="hero">
+  <div class="hero-badge">
+    <span class="badge-pip"></span>
+    v0.1.0 · Open Source · macOS · Windows · Linux
+  </div>
+
+  <h1>Your Aerospike<br>database, <em>in focus</em></h1>
+
+  <p class="hero-sub">
+    A native desktop GUI for Aerospike. Browse namespaces, run AQL queries,
+    inspect records, and watch cluster health — without the terminal overhead.
+  </p>
+
+  <div class="hero-actions">
+    <a href="https://github.com/grejojoby/spikelens/releases/latest" target="_blank" rel="noopener" class="btn btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download for macOS
+    </a>
+    <a href="https://github.com/grejojoby/spikelens" target="_blank" rel="noopener" class="btn btn-ghost">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      View on GitHub
+    </a>
+  </div>
+
+  <div class="hero-meta">
+    <span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      Free &amp; open source
+    </span>
+    <span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      No account required
+    </span>
+    <span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      Runs entirely local
+    </span>
+  </div>
+
+  <!-- ── App mockup ── -->
+  <div class="mockup-wrap">
+    <div class="mockup-glow"></div>
+    <div class="app-window">
+
+      <!-- title bar -->
+      <div class="app-bar">
+        <div class="tlights">
+          <div class="tl tl-r"></div>
+          <div class="tl tl-y"></div>
+          <div class="tl tl-g"></div>
+        </div>
+        <div class="app-bar-title">SpikeLens — Aerospike Manager</div>
+        <div class="app-bar-status">
+          <div class="status-dot"></div>
+          prod-cluster:3000
+        </div>
+      </div>
+
+      <!-- body -->
+      <div class="app-body">
+
+        <!-- sidebar -->
+        <div class="app-sidebar">
+          <div class="sb-label">Connections</div>
+          <div class="sb-conn">
+            <div class="status-dot" style="width:7px;height:7px"></div>
+            prod-cluster
+          </div>
+
+          <div class="sb-label" style="margin-top:14px">Namespaces</div>
+
+          <div class="sb-ns"><span class="arr">▾</span> analytics</div>
+          <div class="sb-set active">└ events</div>
+          <div class="sb-set">└ sessions</div>
+
+          <div class="sb-ns"><span class="arr">▸</span> users</div>
+          <div class="sb-ns"><span class="arr">▸</span> cache</div>
+        </div>
+
+        <!-- main -->
+        <div class="app-main">
+          <div class="app-toolbar">
+            <div class="crumb">
+              <span class="crumb-ns">analytics</span>
+              <span class="crumb-sep">/</span>
+              <span class="crumb-set">events</span>
+            </div>
+            <div class="t-spacer"></div>
+            <div class="t-btn">⌘ Filter</div>
+            <div class="t-btn hi">+ Add Record</div>
+          </div>
+
+          <div class="records-area">
+            <table>
+              <thead>
+                <tr>
+                  <th>KEY</th>
+                  <th>EVENT_TYPE</th>
+                  <th>USER_ID</th>
+                  <th>TIMESTAMP</th>
+                  <th>AMOUNT</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="k">evt_00121</td>
+                  <td class="s">"click"</td>
+                  <td class="n">u_4829</td>
+                  <td class="n">1710003200</td>
+                  <td class="dm">—</td>
+                </tr>
+                <tr class="sel">
+                  <td class="k">evt_00122</td>
+                  <td class="s">"purchase"</td>
+                  <td class="n">u_1920</td>
+                  <td class="n">1710003456</td>
+                  <td class="n">49.99</td>
+                </tr>
+                <tr>
+                  <td class="k">evt_00123</td>
+                  <td class="s">"page_view"</td>
+                  <td class="n">u_7734</td>
+                  <td class="n">1710003891</td>
+                  <td class="dm">—</td>
+                </tr>
+                <tr>
+                  <td class="k">evt_00124</td>
+                  <td class="s">"click"</td>
+                  <td class="n">u_2218</td>
+                  <td class="n">1710004012</td>
+                  <td class="dm">—</td>
+                </tr>
+                <tr>
+                  <td class="k">evt_00125</td>
+                  <td class="s">"checkout"</td>
+                  <td class="n">u_9901</td>
+                  <td class="n">1710004188</td>
+                  <td class="n">129.00</td>
+                </tr>
+                <tr>
+                  <td class="k">evt_00126</td>
+                  <td class="s">"click"</td>
+                  <td class="n">u_3310</td>
+                  <td class="n">1710004400</td>
+                  <td class="dm">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="app-sbar">
+            <span>Records: <span class="sbar-v">1,024</span></span>
+            <span>Page: <span class="sbar-v">1 / 41</span></span>
+            <span>Query: <span class="sbar-v">12 ms</span></span>
+            <span style="margin-left:auto">Namespace mem: <span class="sbar-v">2.4 GB</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ FEATURES ══════════════ -->
+<section class="features" id="features">
+  <div class="section-label reveal">Features</div>
+  <h2 class="section-title reveal">Everything you need<br>to work with Aerospike</h2>
+
+  <div class="feat-grid">
+
+    <div class="feat-card reveal">
+      <div class="feat-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+        </svg>
+      </div>
+      <div class="feat-title">Connection Manager</div>
+      <div class="feat-desc">Save multiple Aerospike connection profiles with TLS support. Test latency before connecting. Switch between dev, staging, and prod in one click.</div>
+    </div>
+
+    <div class="feat-card reveal">
+      <div class="feat-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+        </svg>
+      </div>
+      <div class="feat-title">Namespace &amp; Set Browser</div>
+      <div class="feat-desc">Navigate your entire namespace hierarchy in a collapsible tree. Scan sets with paginated record views, live record counts, and memory stats.</div>
+    </div>
+
+    <div class="feat-card reveal">
+      <div class="feat-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+      </div>
+      <div class="feat-title">Record Inspector</div>
+      <div class="feat-desc">View, create, update, and delete Aerospike records. Edit individual bins with type-aware inputs. Set TTLs and track generation counts directly from the UI.</div>
+    </div>
+
+    <div class="feat-card reveal">
+      <div class="feat-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </div>
+      <div class="feat-title">AQL Editor</div>
+      <div class="feat-desc">Full-featured AQL query editor with persistent history, token-level syntax highlighting, and a built-in cheat sheet for every statement type.</div>
+    </div>
+
+    <div class="feat-card reveal">
+      <div class="feat-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+      </div>
+      <div class="feat-title">Visual Query Builder</div>
+      <div class="feat-desc">Build queries with point-and-click filter rows — eq, range, and contains operations. No AQL required. Results stream into a sortable, resizable table.</div>
+    </div>
+
+    <div class="feat-card reveal">
+      <div class="feat-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
+      <div class="feat-title">Cluster Dashboard</div>
+      <div class="feat-desc">Real-time cluster health streamed via WebSocket. Per-node stats, memory usage, active connections, and latency — all visible at a glance.</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════ HOW IT WORKS ══════════════ -->
+<section class="how" id="how">
+  <div class="how-inner">
+    <div class="section-label reveal">How it works</div>
+    <h2 class="section-title reveal">Zero to querying<br>in three steps</h2>
+
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">01</div>
+        <div class="step-title">Connect</div>
+        <div class="step-desc">Add your Aerospike host, port, and optional credentials. Click "Test" to measure latency and verify connectivity. Save as a named profile.</div>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">02</div>
+        <div class="step-title">Browse</div>
+        <div class="step-desc">Navigate the namespace tree in the sidebar. Select a set to scan its records — paginated, filterable, and fully editable without writing a line of code.</div>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">03</div>
+        <div class="step-title">Query</div>
+        <div class="step-desc">Write AQL directly or use the visual query builder. Run queries, inspect results in table or JSON mode, and export data without leaving the app.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ AQL SPOTLIGHT ══════════════ -->
+<section class="aql" id="aql">
+  <div class="section-label reveal">AQL Editor</div>
+  <h2 class="section-title reveal">Write AQL like a pro.<br>Or don't — we have<br>a visual builder.</h2>
+
+  <div class="aql-layout">
+
+    <!-- editor mockup -->
+    <div class="editor-win reveal">
+      <div class="editor-tabs">
+        <div class="etab on">query.aql</div>
+        <div class="etab">history</div>
+        <div class="etab">cheatsheet</div>
+      </div>
+      <div class="editor-code">
+        <div class="cl"><span class="ln">1</span><span class="ct"><span class="cm">-- High-value purchase events</span></span></div>
+        <div class="cl"><span class="ln">2</span><span class="ct"><span class="kw">SELECT</span> <span class="op">*</span></span></div>
+        <div class="cl"><span class="ln">3</span><span class="ct"><span class="kw">FROM</span> <span class="fn">analytics</span>.<span class="fn">events</span></span></div>
+        <div class="cl"><span class="ln">4</span><span class="ct"><span class="kw">WHERE</span> event_type <span class="op">=</span> <span class="st">"purchase"</span></span></div>
+        <div class="cl"><span class="ln">5</span><span class="ct">&nbsp;&nbsp;<span class="kw">AND</span> amount <span class="op">BETWEEN</span> <span class="nm">50</span> <span class="kw">AND</span> <span class="nm">500</span></span></div>
+        <div class="cl"><span class="ln">6</span><span class="ct">&nbsp;&nbsp;<span class="kw">AND</span> ts <span class="op">></span> <span class="nm">1710000000</span><span class="cur"></span></span></div>
+        <div class="cl"><span class="ln">7</span><span class="ct">&nbsp;</span></div>
+      </div>
+      <div class="editor-results">
+        <div class="res-row">
+          <span class="rc">event_type</span><span class="rv">"purchase"</span>
+          <span class="rc">amount</span><span class="rv">129.00</span>
+          <span class="rc">user_id</span><span class="rv">u_9901</span>
+        </div>
+        <div class="res-row">
+          <span class="rc">event_type</span><span class="rv">"purchase"</span>
+          <span class="rc">amount</span><span class="rv">249.50</span>
+          <span class="rc">user_id</span><span class="rv">u_3310</span>
+        </div>
+        <div class="res-meta">2 rows · 8 ms · index: events_amount_idx</div>
+      </div>
+    </div>
+
+    <!-- feature list -->
+    <div class="aql-list">
+      <div class="aql-item reveal">
+        <div class="aql-item-title">Query history with replay</div>
+        <div class="aql-item-desc">Every query is saved automatically. Browse, search, and re-run past queries from the history panel. Persists across app restarts.</div>
+      </div>
+      <div class="aql-item reveal">
+        <div class="aql-item-title">Full DDL support</div>
+        <div class="aql-item-desc">Run <code>CREATE INDEX</code>, <code>DROP INDEX</code>, <code>INSERT</code>, <code>DELETE</code> — all AQL statement types are supported, not just <code>SELECT</code>.</div>
+      </div>
+      <div class="aql-item reveal">
+        <div class="aql-item-title">Built-in syntax reference</div>
+        <div class="aql-item-desc">The cheat sheet tab covers the full AQL syntax without leaving the app. No browser tab, no docs search, no distractions.</div>
+      </div>
+      <div class="aql-item reveal">
+        <div class="aql-item-title">Table or JSON results</div>
+        <div class="aql-item-desc">Switch between a structured table view and raw JSON mode for deep record inspection. Copy individual cell values in one click.</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════ TECH STRIP ══════════════ -->
+<div class="tech-strip">
+  <div class="tech-inner">
+    <div class="tech-item">
+      <!-- tauri icon -->
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="9" cy="9" r="5"/><circle cx="15" cy="15" r="5"/>
+      </svg>
+      Tauri (Rust)
+    </div>
+    <div class="tech-div"></div>
+    <div class="tech-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="2" fill="#61dafb"/>
+        <ellipse cx="12" cy="12" rx="10" ry="3.5" fill="none" stroke="#61dafb" stroke-width="1.5"/>
+        <ellipse cx="12" cy="12" rx="10" ry="3.5" fill="none" stroke="#61dafb" stroke-width="1.5" transform="rotate(60,12,12)"/>
+        <ellipse cx="12" cy="12" rx="10" ry="3.5" fill="none" stroke="#61dafb" stroke-width="1.5" transform="rotate(120,12,12)"/>
+      </svg>
+      React Frontend
+    </div>
+    <div class="tech-div"></div>
+    <div class="tech-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="#00ADD8">
+        <path d="M1.8 10.2c-.05 0-.06-.02-.04-.06l.25-.32c.02-.03.08-.06.13-.06h4.17c.05 0 .06.04.04.07l-.2.3c-.02.04-.08.07-.12.07L1.8 10.2zm-1.21 1.27c-.05 0-.06-.02-.04-.06l.25-.32c.02-.03.08-.06.13-.06h5.33c.05 0 .06.04.04.07l-.09.28c-.01.05-.06.07-.11.07L.59 11.47zm2.08 1.27c-.05 0-.06-.02-.04-.06l.16-.3c.02-.04.07-.06.12-.06H5.3c.05 0 .06.04.06.07l-.02.29c0 .05-.05.07-.09.07l-2.53-.01zM14.06 9.1c-.74.19-1.24.33-1.96.51-.18.05-.19.06-.34-.12-.17-.2-.3-.33-.55-.44-.74-.36-1.45-.26-2.12.18-.79.51-1.2 1.27-1.19 2.22.01.94.65 1.71 1.58 1.84.8.1 1.46-.18 1.99-.77.1-.13.2-.27.31-.44H9.79c-.25 0-.3-.15-.22-.35.15-.36.43-.97.6-1.27.07-.14.2-.19.29-.19h4.26c-.02.32-.02.63-.07.95-.17 1.06-.66 2.02-.96 2.29-.84 1.11-1.94 1.8-3.33 1.99-1.14.15-2.21-.07-3.14-.77-.87-.66-1.36-1.52-1.48-2.6-.15-1.27.22-2.42.99-3.41.83-1.09 1.93-1.78 3.27-2.02 1.1-.2 2.15-.07 3.1.57.62.41 1.06.97 1.36 1.65.07.1.02.16-.12.2zm3.87 6.46c-1.06-.02-2.03-.33-2.85-1.03-.77-.65-1.19-1.52-1.26-2.26-.21-1.32.15-2.49.95-3.51.85-1.1 1.97-1.74 3.35-1.9 1.17-.14 2.24.07 3.18.77.87.66 1.36 1.52 1.48 2.59.15 1.28-.22 2.42-.99 3.41-.85 1.1-1.97 1.74-3.35 1.9l-.51.03zm3.06-4.5c-.02-.29-.07-.58-.18-.87-.24-.74-.75-1.26-1.51-1.46-.75-.2-1.46-.05-2.08.44-.62.49-.89 1.16-.91 1.93-.02.76.21 1.41.72 1.95.55.56 1.23.78 2 .63.76-.15 1.32-.61 1.65-1.31.19-.4.27-.81.31-1.31z"/>
+      </svg>
+      Go Backend
+    </div>
+    <div class="tech-div"></div>
+    <div class="tech-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+      </svg>
+      Aerospike Native
+    </div>
+    <div class="tech-div"></div>
+    <div class="tech-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      Open Source
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ FOOTER ══════════════ -->
+<footer>
+  <div class="footer-inner">
+    <a href="#" class="footer-logo">
+      <div class="logo-mark">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="6.5" cy="6.5" r="4" stroke="white" stroke-width="1.5"/>
+          <line x1="9.5" y1="9.5" x2="14" y2="14" stroke="white" stroke-width="1.6" stroke-linecap="round"/>
+          <line x1="4" y1="6.5" x2="9" y2="6.5" stroke="white" stroke-width="1.1" stroke-linecap="round"/>
+          <line x1="6.5" y1="4" x2="6.5" y2="9" stroke="white" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+      </div>
+      SpikeLens
+    </a>
+
+    <div class="footer-links">
+      <a href="#features" class="footer-link">Features</a>
+      <a href="#aql" class="footer-link">AQL Editor</a>
+      <a href="https://github.com/grejojoby/spikelens" target="_blank" rel="noopener" class="footer-link">GitHub</a>
+      <a href="https://github.com/grejojoby/spikelens/releases/latest" target="_blank" rel="noopener" class="footer-link">Releases</a>
+    </div>
+
+    <div class="footer-badge">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      Open Source
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal with stagger for grids
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('vis');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -32px 0px' });
+
+  document.querySelectorAll('.reveal').forEach((el, i) => {
+    const parent = el.closest('.feat-grid, .steps, .aql-list');
+    if (parent) {
+      const siblings = Array.from(parent.querySelectorAll('.reveal'));
+      const idx = siblings.indexOf(el);
+      el.style.transitionDelay = `${idx * 0.07}s`;
+    }
+    observer.observe(el);
+  });
+
+  // Nav background opacity on scroll
+  const nav = document.getElementById('nav');
+  window.addEventListener('scroll', () => {
+    nav.style.background = window.scrollY > 24
+      ? 'rgba(10,11,15,0.97)'
+      : 'rgba(10,11,15,0.75)';
+  }, { passive: true });
+</script>
+
+</body>
+</html>
