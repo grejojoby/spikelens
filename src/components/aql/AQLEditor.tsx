@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import MonacoEditor, { type OnMount } from '@monaco-editor/react'
 import { Play } from 'lucide-react'
 import Button from '@/components/shared/Button'
@@ -14,10 +14,14 @@ interface AQLEditorProps {
   onChange: (v: string) => void
   onExecute: () => void
   isLoading?: boolean
+  namespaces?: string[]
 }
 
-export default function AQLEditor({ value, onChange, onExecute, isLoading }: AQLEditorProps) {
+export default function AQLEditor({ value, onChange, onExecute, isLoading, namespaces = [] }: AQLEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  // Keep a ref so the Monaco completion closure always reads fresh data
+  const namespacesRef = useRef<string[]>(namespaces)
+  useEffect(() => { namespacesRef.current = namespaces }, [namespaces])
 
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
@@ -53,13 +57,23 @@ export default function AQLEditor({ value, onChange, onExecute, isLoading }: AQL
           startColumn: word.startColumn,
           endColumn: word.endColumn,
         }
+        const nsSuggestions = namespacesRef.current.map(ns => ({
+          label: ns,
+          kind: monaco.languages.CompletionItemKind.Module,
+          insertText: ns,
+          detail: 'namespace',
+          range,
+        }))
         return {
-          suggestions: AQL_KEYWORDS.map(kw => ({
-            label: kw,
-            kind: monaco.languages.CompletionItemKind.Keyword,
-            insertText: kw,
-            range,
-          })),
+          suggestions: [
+            ...AQL_KEYWORDS.map(kw => ({
+              label: kw,
+              kind: monaco.languages.CompletionItemKind.Keyword,
+              insertText: kw,
+              range,
+            })),
+            ...nsSuggestions,
+          ],
         }
       },
     })
