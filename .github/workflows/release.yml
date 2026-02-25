@@ -1,0 +1,148 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+# Allow this workflow to create GitHub Releases and upload assets
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS Apple Silicon
+          - platform: macos-14
+            rust-target: aarch64-apple-darwin
+            go-os: darwin
+            go-arch: arm64
+            label: macOS (Apple Silicon)
+
+          # macOS Intel
+          - platform: macos-13
+            rust-target: x86_64-apple-darwin
+            go-os: darwin
+            go-arch: amd64
+            label: macOS (Intel)
+
+          # Linux x86_64
+          - platform: ubuntu-22.04
+            rust-target: x86_64-unknown-linux-gnu
+            go-os: linux
+            go-arch: amd64
+            label: Linux (x86_64)
+
+          # Windows x86_64
+          - platform: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+            go-os: windows
+            go-arch: amd64
+            label: Windows (x86_64)
+
+    runs-on: ${{ matrix.platform }}
+    name: Build · ${{ matrix.label }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Go backend ────────────────────────────────────────────────────────────
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      # Unix (macOS + Linux): build the Go sidecar binary
+      - name: Build Go sidecar (Unix)
+        if: matrix.go-os != 'windows'
+        working-directory: backend
+        env:
+          GOOS: ${{ matrix.go-os }}
+          GOARCH: ${{ matrix.go-arch }}
+          CGO_ENABLED: "0"
+        run: |
+          go build -ldflags="-s -w" \
+            -o ../src-tauri/binaries/spikelens-server-${{ matrix.rust-target }} \
+            ./cmd/server/
+
+      # Windows: build the Go sidecar binary (.exe)
+      - name: Build Go sidecar (Windows)
+        if: matrix.go-os == 'windows'
+        working-directory: backend
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        shell: pwsh
+        run: |
+          go build -ldflags="-s -w" `
+            -o ..\src-tauri\binaries\spikelens-server-${{ matrix.rust-target }}.exe `
+            ./cmd/server/
+
+      # ── Linux system dependencies ─────────────────────────────────────────────
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            libssl-dev \
+            libgtk-3-dev
+
+      # ── Node / frontend ───────────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # ── Rust ──────────────────────────────────────────────────────────────────
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      # ── Tauri build + GitHub Release ─────────────────────────────────────────
+      - name: Build Tauri app and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: SpikeLens ${{ github.ref_name }}
+          releaseBody: |
+            ## What's new
+            <!-- Fill in release notes before publishing -->
+
+            ## Downloads
+
+            | Platform | Installer |
+            |---|---|
+            | macOS (Apple Silicon, M1+) | `SpikeLens_*_aarch64.dmg` |
+            | macOS (Intel) | `SpikeLens_*_x64.dmg` |
+            | Windows | `SpikeLens_*_x64-setup.exe` |
+            | Linux (Debian / Ubuntu) | `spikelens_*_amd64.deb` |
+            | Linux (Generic / AppImage) | `spikelens_*_amd64.AppImage` |
+
+            > **macOS note:** the app is not yet notarized. On first launch, right-click → Open to bypass Gatekeeper.
+          releaseDraft: true
+          prerelease: false
+          tauriScript: npx tauri
+          args: --target ${{ matrix.rust-target }}
