@@ -3,15 +3,18 @@ module github.com/grejo-j/spikelens/backend
 go 1.25.5
 
 require (
-	github.com/aerospike/aerospike-client-go/v7 v7.10.2 // indirect
-	github.com/go-chi/chi/v5 v5.2.5 // indirect
-	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/aerospike/aerospike-client-go/v7 v7.10.2
+	github.com/go-chi/chi/v5 v5.2.5
+	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
+)
+
+require (
 	github.com/yuin/gopher-lua v1.1.1 // indirect
-	golang.org/x/net v0.26.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240711142825-46eb208f015d // indirect
 	google.golang.org/grpc v1.63.3 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
